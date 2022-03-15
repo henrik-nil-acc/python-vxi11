@@ -19,9 +19,12 @@ Original source: http://svn.python.org/projects/python/trunk/Demo/rpc/rpc.py
 
 """
 
+import logging
 import socket
 import struct
 import xdrlib
+
+_logger = logging.getLogger('vxi11')
 
 HEADER_FORMAT = ">I"
 
@@ -245,10 +248,14 @@ def recvfrag(sock):
         if not buf:
             raise EOFError
         header.extend(buf)
+        if len(header) < 4:
+            _logger.warning("Bug triggered")
 
     x = struct.unpack(HEADER_FORMAT, header[0:header_size])[0]
     last = ((x & 0x80000000) != 0)
     n = int(x & 0x7fffffff)
+
+    _logger.info("Last: %s, Length = %d", last, n)
 
     frag = bytearray()
     while len(frag) < n:
