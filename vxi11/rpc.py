@@ -19,10 +19,11 @@ Original source: http://svn.python.org/projects/python/trunk/Demo/rpc/rpc.py
 
 """
 
-import xdrlib
 import socket
-import os
 import struct
+import xdrlib
+
+HEADER_FORMAT = ">I"
 
 RPCVERSION = 2
 
@@ -216,32 +217,54 @@ class Client:
 # Record-Marking standard support
 
 def sendfrag(sock, last, frag):
+    """
+    Send a fragment
+    """
     x = len(frag)
-    if last: x = x | 0x80000000
-    header = struct.pack(">I", x)
+    if last:
+        x = x | 0x80000000
+    header = struct.pack(HEADER_FORMAT, x)
     sock.sendall(header + frag)
 
 def sendrecord(sock, record):
+    """
+    Send a record
+    """
     if len(record) > 0:
         sendfrag(sock, 1, record)
 
 def recvfrag(sock):
-    header = sock.recv(4)
-    if len(header) < 4:
-        raise EOFError
-    x = struct.unpack(">I", header[0:4])[0]
+    """
+    Receive a fragment
+    """
+    header_size = struct.calcsize(HEADER_FORMAT)
+
+    header = bytearray()
+    while len(header) < header_size:
+        buf = sock.recv(header_size - len(header))
+        if not buf:
+            raise EOFError
+        header.extend(buf)
+
+    x = struct.unpack(HEADER_FORMAT, header[0:header_size])[0]
     last = ((x & 0x80000000) != 0)
     n = int(x & 0x7fffffff)
+
     frag = bytearray()
     while len(frag) < n:
         buf = sock.recv(n - len(frag))
-        if not buf: raise EOFError
+        if not buf:
+            raise EOFError
         frag.extend(buf)
+
     return last, frag
 
 def recvrecord(sock):
+    """
+    Receive a record
+    """
     record = bytearray()
-    last = 0
+    last = False
     while not last:
         last, frag = recvfrag(sock)
         record.extend(frag)
@@ -774,5 +797,3 @@ def test(host = ''):
         else: st += "%d " % prot
         st += "%d" % port
         print(st)
-
-
